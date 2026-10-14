@@ -1,126 +1,123 @@
 # Webserv
 
-Webserv is a lightweight HTTP server designed to demonstrate how sockets and the HTTP protocol work together to enable communication between clients and servers. This project serves as a foundational step towards understanding how web servers operate.
+An HTTP/1.1 server built for the **42 Webserv project**. It handles client connections through non-blocking sockets and a `kqueue` event loop, with configurable routes, file uploads, and CGI execution.
 
+## Features
 
-### SOCKETS
-sockets are a fundamental component for communication between the server and clients. Sockets allow the server to listen for incoming connections, send and receive data, and manage multiple clients concurrently in a networked environment. A socket is an endpoint for sending or receiving data across a computer network
+- `GET`, `POST`, and `DELETE` request handling.
+- Static files, index pages, and directory listings.
+- Multiple server blocks, ports, and virtual hosts.
+- Route-specific methods, redirects, and upload directories.
+- Configurable error pages and request body limits.
+- CGI execution with configured interpreters and a five-second timeout.
+- Cookie and file-based session examples for `/cookie` and `/cookie2`.
 
-### Types of Sockets
-1. Stream Sockets (TCP Sockets):
-    - Used for reliable, connection-oriented communication (TCP).
-    - Most web servers use TCP sockets for HTTP communication, as HTTP requires reliable data transmission.
-2. Datagram Sockets (UDP Sockets):
-    - Used for connectionless communication (UDP), which doesn't guarantee delivery or order of messages.
-    - These are less common for web servers because HTTP requires reliability.
+## Getting started
 
-### How Sockets Work
-1. Creation: A socket is created using the socket() system call.
-2. Binding: A server socket binds to an IP address and port to identify the communication endpoint.
-3. Listening: A server listens for incoming connection requests.
-4. Connecting: A client connects to the server using its IP address and port.
-5. Communication: Data is exchanged between the client and the server using send, recv, read, or write.
-6. Closure: Once communication is complete, the socket is closed using the close() function.
+### Requirements
 
-This diagram explains how sockets work:
-https://www.tldraw.com/r/GrwragUxW3rwoaPJdZbk-?d=v-776.-672.2460.2216.page
+- macOS: the source uses `kqueue` and macOS-specific system headers.
+- A C++ compiler and `make`.
+- Python, PHP, or a shell interpreter if enabled in your CGI configuration.
 
-### HTTP
-The Hypertext Transfer Protocol defines a set of rules that clients and servers have to follow in order to communicate with each other for webpages
+The Makefile specifies C++98, while the source uses C++11 features such as `std::unordered_map` and `std::to_string`. Build with the standard override below:
 
-#### General Formatting of Requests and Responses
-There are two main parts of a request / response, the header and the body.
-The header contains information on the request / response, describing the context information.
-The body contains the content of the request / response, which may be empty.
-This string of characters must be present before and after the body (if it exists), which signifies its start and end point.
-
-#### Request
-The header of the request starts with a request-line, which specifies (in order) the request method, the request URI and the HTTP version.
-
-``GET /index.html HTTP/1.1``
-
-After the request-line, there may be header fields that describe the context of the request.
-The following is an example of a GET request, sent by the browser when a client was trying to access index.html.
-
-```
-GET /index.html HTTP/1.1
-Host: localhost
-Connection: keep-alive
-sec-ch-ua: "Chromium";v="116", "Not)A;Brand";v="24", "Opera GX";v="102"
-sec-ch-ua-mobile: ?0
-sec-ch-ua-platform: "Windows"
-Upgrade-Insecure-Requests: 1
-User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36 OPR/102.0.0.0
-Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
-Sec-Fetch-Site: none
-Sec-Fetch-Mode: navigate
-Sec-Fetch-User: ?1
-Sec-Fetch-Dest: document
-Accept-Encoding: gzip, deflate, br
-Accept-Language: en-US,en;q=0.9
+```sh
+make FLAGS="-Wall -Wextra -Werror -std=c++11"
 ```
 
-This diagram explains how requests work: https://coggle.it/diagram/ZFjiviHgHRe8f6T2/t/request
+### Configure and run
 
-#### Response
-The response is very similar to the request, in which it starts with a response-line, which specifies (in order) the HTTP version, the status code and the status message.
+From the repository root, save this example as `local.conf`. It serves the included HTML pages on port **8080**:
 
-HTTP/1.1 200 OK
-Similar to requests, the response might have header fields and also a body.
+```nginx
+server {
+    listen 8080 127.0.0.1;
+    server_name localhost;
+    root ./pages_html;
+    index upload.html;
+    autoindex off;
+    client_max_body_size 1048576;
 
-The following is an example of a response to a request.
-
-HTTP/1.1 200 OK
-Connection: keep-alive
-Content-Type: text/html
-Content-Length: 2462
-
-```
-<!DOCTYPE html>
-<html>
-        <head>
-                <style>
-                        body {
-                        font-family: Arial, Helvetica, sans-serif;
-                        background-color: #000000;
-                        }
-...
-...
-...
-</html>
+    location / {
+        allow_methods GET;
+    }
+}
 ```
 
+Start the server:
 
-### kevent && kqueue
-The *kevent* function is the core mechanism of the *kqueue* event notification interface, which is used for scalable, efficient event-driven programming in modern operating systems.
-
-#### How kevent Works
-1. Register Events (Setup)
-
-Use the changelist to specify which events to monitor.
-```
-    EV_SET(&change_list[0], server_socket, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, NULL);
-    kevent(kq, change_list, change_count, NULL, 0, NULL);
+```sh
+./webserv local.conf
 ```
 
-2. Monitor Events
+Open <http://127.0.0.1:8080> or check the response:
 
-Call kevent() to wait for events.
+```sh
+curl -i http://127.0.0.1:8080/
 ```
-    struct kevent event_list[128];
-    int event_count = kevent(kq, change_list, 0, event_list, 128, NULL);
+
+This example serves the upload page; accepting uploads requires a location with `POST` enabled and an existing, writable `upload_store` directory.
+
+Running `./webserv` without arguments loads `ParseConfigFile/default.conf`. Update its machine-specific paths before using it. Run from the repository root so the built-in error pages and session directory resolve correctly.
+
+## Configuration
+
+The configuration uses `server` and `location` blocks. Directives end with a semicolon; `#` starts a comment.
+
+| Directive | Scope | Purpose |
+| --- | --- | --- |
+| `listen` | Server | Port followed by an optional host, e.g. `8080 127.0.0.1`. |
+| `server_name` | Server | Names matched against the request's `Host` header. |
+| `root` | Server, location | Directory used to resolve requested files. |
+| `index` | Server, location | Index filenames to look for in a directory. |
+| `autoindex` | Server, location | Enable or disable directory listings with `on` or `off`. |
+| `client_max_body_size` | Server | Maximum request body size in bytes. |
+| `error_page` | Server | Map status codes to an error page. |
+| `return` | Server, location | Redirect status code and destination. |
+| `allow_methods` | Location | Allowed methods: `GET`, `POST`, `DELETE`. |
+| `upload_store` | Location | Existing directory for uploaded files; required when `POST` is enabled. |
+| `cgi_extension` | Location | Extension and interpreter path, e.g. `py /usr/bin/python3`. |
+
+See [default.conf](ParseConfigFile/default.conf) for additional configuration examples.
+
+## Architecture
+
+![Webserv architecture](docs/diagrams/architecture.svg)
+
+Configuration is parsed before sockets are created. The event loop accepts connections, reads requests, and dispatches responses. CGI child processes and their timeout timers are monitored through the same event queue.
+
+[Editable Excalidraw diagram](docs/diagrams/architecture.excalidraw)
+
+## Request flow
+
+![HTTP request flow](docs/diagrams/request-flow.svg)
+
+The server selects a virtual host from the `Host` header, matches a location, and applies its configuration. The response layer handles files, uploads, deletion, redirects, CGI output, and errors. The connection closes after the response is complete.
+
+[Editable Excalidraw diagram](docs/diagrams/request-flow.excalidraw)
+
+To edit either diagram, download its `.excalidraw` file and open it in Excalidraw. SVG previews are included for display on GitHub.
+
+## Project structure
+
+```text
+.
+├── main.cpp             # Entry point and configuration selection
+├── WebServ.cpp/.hpp     # Sockets, event loop, and CGI monitoring
+├── ParseConfigFile/     # Configuration parser and examples
+├── Configuration/       # Server and location settings
+├── Request/             # HTTP request parsing and state
+├── Response/            # Methods, CGI, and error responses
+├── pages_html/          # Built-in status and upload pages
+└── docs/diagrams/        # SVG previews and Excalidraw sources
 ```
-The returned event_list will contain details about events that are ready.
 
-3. Process Ready Events
+## Build commands
 
-Iterate through event_list to handle each ready event.
-
-#### Comparison(kqueue, poll / select)
-
-|            Feature           |            kqueue            |           poll / select           |
-|------------------------------|------------------------------|-----------------------------------|
-| Event Registration           | Done once and stored persistently  | Must re-specify in every iteration  |
-| Kernel Overhead              | Minimal (no repeated registrations) | High (repeated copying and processing) |
-| Performance                  | Scales efficiently with FDs  | Poor scalability for large numbers of FDs  |
-| Flexibility	               | Monitors various types of events  | Limited to read, write, and error  |
+| Command | Action |
+| --- | --- |
+| `make FLAGS="-Wall -Wextra -Werror -std=c++11"` | Build `webserv` and create the session directory. |
+| `make clean` | Remove object files. |
+| `make fclean` | Remove object files, the executable, and stored sessions. |
+| `make re FLAGS="-Wall -Wextra -Werror -std=c++11"` | Clean and rebuild, including removal of stored sessions. |
